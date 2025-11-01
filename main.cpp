@@ -84,7 +84,7 @@ class Challenge {
       },
       0.0, 1.0
     );*/
-    double t = 0.5;
+    double t = 1.0-0.125;
     auto ef = calculateEF(alignedTrapezoid, t);
 
     return ef;
@@ -114,29 +114,31 @@ class Challenge {
     double y_bottom = a.y;
     double y_top = y_bottom + h;
 
-    double slope_l = ((x - a.x)/(d.x - a.x));
-    double slope_r = ((x - b.x)/(c.x - b.x));
-
     double x0_l = std::min(a.x, d.x);
     double x1_l = std::max(a.x, d.x);
     double x0_r = std::min(b.x, c.x);
     double x1_r = std::max(b.x, c.x);
 
-    double y_l = h*slope_l; 
-    double y_r = h*slope_r;
-
-    std::cout << "y_l: " << y_l << ", y_r: " << y_r << std::endl;
-
+    // vertical line intersects left side
     if (x > x0_l && x < x1_l) {
-      if (slope_l < 0) {
-        y_bottom = y_l;
-      } else {
+      double y_l = h*((x - a.x)/(d.x - a.x)); 
+      Point l = a.x < d.x ? a : d;
+      Point r = a.x < d.x ? d : a;
+      // determine which is top and which is bottom
+      //   depending on the slope sign
+      if (l.y - r.y < 0) {
         y_top = y_l;
+      } else {
+        y_bottom = y_l;
       }
     }
 
+    // vertical line intersects right side
     if (x > x0_r && x < x1_r) {
-      if (slope_r >= 0) {
+      double y_r = h*((x - b.x)/(c.x - b.x));
+      Point l = b.x < c.x ? b : c;
+      Point r = b.x < c.x ? c : b;
+      if (l.y - r.y < 0) {
         y_bottom = y_r;
       } else {
         y_top = y_r;
