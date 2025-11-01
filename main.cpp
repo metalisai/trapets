@@ -1,5 +1,8 @@
 #include <iostream>
 #include <cmath>
+#include <string>
+#include <cassert>
+#include <functional>
 
 struct Point {
   double x;
@@ -44,6 +47,44 @@ public:
   }
 private:
   Point a, b, c, d;
+};
+
+class BisectionRootFinder {
+public:
+  static double solve(std::function<double(double)> f,
+      double a, double b, double tol = 1e-9, int maxIter = 100) {
+    throw std::runtime_error("Not implemented");
+  }
+};
+
+class Challenge {
+  public:
+  static std::pair<Point, Point> calculateEF(const Trapezoid& trapezoid) {
+    auto area = trapezoid.area();
+    auto halfArea = area / 2.0;
+
+    // TODO: check if bases are horizontal
+    //   if not, rotate the trapezoid to make them horizontal
+    Trapezoid alignedTrapezoid = trapezoid;
+
+    double t = BisectionRootFinder::solve(
+      [&](double t) {
+        return rootFunc(alignedTrapezoid, t, halfArea);
+      },
+      0.0, 1.0
+    );
+
+    return {{0, 0}, {0, 0}}; // placeholder implementation
+  }
+  protected:
+  static double leftArea(const Trapezoid& trapezoid, double t) {
+    assert(t >= 0 && t <= 1);
+    return 0.0; // placeholder implementation
+  }
+
+  static double rootFunc(const Trapezoid& trapezoid, double t , double targetArea) {
+    return leftArea(trapezoid, t) - targetArea;
+  }
 };
 
 int main(void) {
