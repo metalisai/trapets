@@ -65,7 +65,26 @@ class BisectionRootFinder {
 public:
   static double solve(std::function<double(double)> f,
       double a, double b, double tol = 1e-9, int maxIter = 100) {
-    throw std::runtime_error("Not implemented");
+    double fa = f(a);
+    double fb = f(b);
+    if (fa * fb > 0) {
+      throw std::invalid_argument("Function must have opposite signs at the endpoints.");
+    }
+    for (int iter = 0; iter < maxIter; iter++) {
+      double c = 0.5 * (a + b);
+      double fc = f(c);
+      if (std::abs(fc) < tol || (b - a) / 2 < tol) {
+        return c;
+      }
+      if (fa * fc < 0) {
+        b = c;
+        fb = fc;
+      } else {
+        a = c;
+        fa = fc;
+      }
+    }
+    throw std::runtime_error("Maximum iterations reached without convergence.");
   }
 };
 
@@ -86,13 +105,17 @@ class Challenge {
     std::cout << "Left area at t=0.5: " << leftAreaAt05 << std::endl;
     std::cout << "Left area at t=1: " << leftAreaAt1 << std::endl;
 
-    /*double t = BisectionRootFinder::solve(
+    double t = BisectionRootFinder::solve(
       [&](double t) {
+        std::cout << "Evaluating rootFunc at t=" << t << std::endl;
         return rootFunc(alignedTrapezoid, t, halfArea);
       },
       0.0, 1.0
-    );*/
-    double t = 0.5;
+    );
+    std::cout << "Found t: " << t << std::endl;
+    double leftAreaAtT = leftArea(alignedTrapezoid, t);
+    std::cout << "Left area at t=" << t << ": " << leftAreaAtT << std::endl;
+    //double t = 0.5;
     auto ef = calculateEF(alignedTrapezoid, t);
 
     return ef;
@@ -139,6 +162,7 @@ class Challenge {
     std::set<double> breakpoints = {0.0, y_l, y_r, h};
     std::vector<double> bpVec(breakpoints.begin(), breakpoints.end());
     int intervals = breakpoints.size() - 1;
+    assert(intervals >= 1);
 
     // iterate over intervals where area equation is consistent
     //   and sum area contributions
