@@ -3,6 +3,7 @@
 #include <string>
 #include <cassert>
 #include <functional>
+#include <set>
 
 struct Point {
   double x;
@@ -78,21 +79,94 @@ class Challenge {
     //   if not, rotate the trapezoid to make them horizontal
     Trapezoid alignedTrapezoid = trapezoid;
 
+    double leftAreaAt0 = leftArea(alignedTrapezoid, 0.0);
+    double leftAreaAt05 = leftArea(alignedTrapezoid, 0.5);
+    double leftAreaAt1 = leftArea(alignedTrapezoid, 1.0);
+    std::cout << "Left area at t=0: " << leftAreaAt0 << std::endl;
+    std::cout << "Left area at t=0.5: " << leftAreaAt05 << std::endl;
+    std::cout << "Left area at t=1: " << leftAreaAt1 << std::endl;
+
     /*double t = BisectionRootFinder::solve(
       [&](double t) {
         return rootFunc(alignedTrapezoid, t, halfArea);
       },
       0.0, 1.0
     );*/
-    double t = 1.0-0.125;
+    double t = 0.5;
     auto ef = calculateEF(alignedTrapezoid, t);
 
     return ef;
   }
   protected:
+  // integral of max(0, min(x, x_r(y)) - x_l(y))
+  //   when not truncated by vertical line at x
+  static double fullSection(double y_a, double y_b, double h, double width1, double width2) {
+    double dy = y_b - y_a;
+    double area = width1*dy + (width2 - width1)*(y_b*y_b - y_a*y_a)/(2.0*h);
+    return area;
+  }
+
+  // integral of max(0, min(x, x_r(y)) - x_l(y))
+  //   when truncated by vertical line at x
+  static double truncSection(double y_a, double y_b, double h, double x, double x0, double x1) {
+    double dy = y_b - y_a;
+    double area = (x - x0)*dy - (x1-x0)*(y_b*y_b - y_a*y_a)/(2.0*h);
+    return area;
+  }
+
   static double leftArea(const Trapezoid& trapezoid, double t) {
     assert(t >= 0 && t <= 1);
-    return 0.0; // placeholder implementation
+    auto a = trapezoid.getA();
+    auto b = trapezoid.getB();
+    auto c = trapezoid.getC();
+    auto d = trapezoid.getD();
+    double h = trapezoid.height();
+
+    // find x at parameter t
+    double x0 = std::min(a.x, d.x);
+    double x1 = std::max(b.x, c.x);
+    double x = x0 + t * (x1 - x0);
+
+    // find vertical line intersections with left and right sides
+    //   clamp within trapezoid
+    double y_l = h*((x - a.x)/(d.x - a.x)); 
+    y_l = std::clamp(y_l, 0.0, h);
+    double y_r = h*((x - b.x)/(c.x - b.x));
+    y_r = std::clamp(y_r, 0.0, h);
+
+    // find unique points where area equation changes
+    //   (completely on left, cut by vertical line, completely on right)
+    std::set<double> breakpoints = {0.0, y_l, y_r, h};
+    std::vector<double> bpVec(breakpoints.begin(), breakpoints.end());
+    int intervals = breakpoints.size() - 1;
+
+    // iterate over intervals where area equation is consistent
+    //   and sum area contributions
+    double area = 0.0;
+    for (int i = 0; i < intervals; i++) {
+      auto start = bpVec[i];
+      auto end = bpVec[i+1];
+      auto mid = 0.5 * (start + end);
+      std::cout << "Interval [" << start << ", " << end << "], mid: " << mid << std::endl;
+
+      double x_l_mid = a.x + (d.x - a.x) / h * mid;
+      double x_r_mid = b.x + (c.x - b.x) / h * mid;
+      std::cout << "  x_l_mid: " << x_l_mid << ", x_r_mid: " << x_r_mid << std::endl;
+      if (x <= x_l_mid) {
+        std::cout << "0 area" << std::endl;
+        continue;
+      } else if (x >= x_r_mid) {
+        std::cout << "full area" << std::endl;
+        area += fullSection(start, end, h,
+            Point::distance(a, b), Point::distance(d, c));
+      } else {
+        std::cout << "trunc area" << std::endl;
+        area += truncSection(start, end, h, x,
+            a.x, d.x);
+      }
+    }
+
+    return area;
   }
 
   static double rootFunc(const Trapezoid& trapezoid, double t , double targetArea) {
@@ -100,6 +174,7 @@ class Challenge {
   }
 
   static std::pair<Point, Point> calculateEF(const Trapezoid& trapezoid, double t) {
+    assert(t >= 0 && t <= 1);
     auto a = trapezoid.getA();
     auto b = trapezoid.getB();
     auto c = trapezoid.getC();
