@@ -4,6 +4,8 @@
 #include <cassert>
 #include <functional>
 #include <set>
+#include <vector>
+#include <algorithm>
 
 #include <fstream>
 
@@ -20,8 +22,20 @@ struct Point {
   }
 };
 
+struct Mat2x2 {
+  double m00, m01;
+  double m10, m11;
+};
+
+Point operator*(const Mat2x2& mat, const Point& p) {
+  return {
+    mat.m00 * p.x + mat.m01 * p.y,
+    mat.m10 * p.x + mat.m11 * p.y
+  };
+}
+
 class Trapezoid {
-public:
+  public:
   Trapezoid(const Point& a, const Point& b, const Point& c, const Point& d)
       : a(a), b(b), c(c), d(d) {}
 
@@ -34,14 +48,32 @@ public:
     // check if the top and bottom sides are parallel
     double slope1 = (b.y - a.y) / (b.x - a.x);
     double slope2 = (d.y - c.y) / (d.x - c.x);
-    return std::abs(slope1 - slope2) < 1e-9;
+    return std::abs(slope1 - slope2) < 1e-4;
   }
 
+  // return a rotated copy of the trapezoid
+  Trapezoid rotated(double angleRad) const {
+    double cosA = std::cos(angleRad);
+    double sinA = std::sin(angleRad);
+    Mat2x2 rotationMatrix = {cosA, -sinA, sinA, cosA};
+    return Trapezoid(
+      rotationMatrix * a,
+      rotationMatrix * b,
+      rotationMatrix * c,
+      rotationMatrix * d
+    );
+  }
+
+  // compute height of trapezoid as distance between parallel sides AB and CD
   double height() const {
-    // TODO: handle non-horizontal bases
-    return std::abs(a.y - c.y);
+    double dx = b.x - a.x;
+    double dy = b.y - a.y;
+    double length = std::sqrt(dx*dx + dy*dy);
+    double height = std::abs((d.x - a.x)*dy - (d.y - a.y)*dx) / length;
+    return height;
   }
 
+  // compute area of trapezoid
   double area() const {
     double base1 = Point::distance(a, b);
     double base2 = Point::distance(c, d);
@@ -49,6 +81,7 @@ public:
     return 0.5 * (base1 + base2) * height;
   }
 
+  // return string representation
   std::string toString() const {
     return "Trapezoid(" + a.toString() + ", " + b.toString() + ", " +
            c.toString() + ", " + d.toString() + ")";
@@ -59,12 +92,14 @@ public:
   const Point& getC() const { return c; }
   const Point& getD() const { return d; }
 
-private:
+  private:
   Point a, b, c, d;
 };
 
+// simple bisection root finder
 class BisectionRootFinder {
-public:
+  public:
+
   static double solve(std::function<double(double)> f,
       double a, double b, double tol = 1e-9, int maxIter = 100) {
     double fa = f(a);
@@ -92,30 +127,41 @@ public:
 
 class Challenge {
   public:
-  static std::pair<Point, Point> calculateEF(const Trapezoid& trapezoid) {
-    auto area = trapezoid.area();
-    auto halfArea = area / 2.0;
 
-    // TODO: check if bases are horizontal
-    //   if not, rotate the trapezoid to make them horizontal
-    Trapezoid alignedTrapezoid = trapezoid;
+  // solve the challenge: find points E and F that split trapezoid area in half
+  static std::pair<Point, Point> calculateEF(const Trapezoid& trapezoid) {
+
+    double angleRad = std::atan2(trapezoid.getB().y - trapezoid.getA().y,
+                                 trapezoid.getB().x - trapezoid.getA().x);
+    angleRad = std::abs(angleRad) < 1e-9 ? 0.0 : angleRad;
+    Trapezoid alignedTrapezoid = trapezoid.rotated(-angleRad);
+
+    auto area = alignedTrapezoid.area();
+    auto halfArea = area / 2.0;
 
     double t = BisectionRootFinder::solve(
       [&](double t) {
-        //std::cout << "Evaluating rootFunc at t=" << t << std::endl;
         return rootFunc(alignedTrapezoid, t, halfArea);
       },
       0.0, 1.0
     );
-    //std::cout << "Found t: " << t << std::endl;
-    double leftAreaAtT = leftArea(alignedTrapezoid, t);
-    std::cout << "Left area at t=" << t << ": " << leftAreaAtT << std::endl;
-    //double t = 0.5;
+
     auto ef = calculateEFAtT(alignedTrapezoid, t);
+
+    // rotate points E and F back to original orientation
+    double cosA = std::cos(angleRad);
+    double sinA = std::sin(angleRad);
+    Mat2x2 rot = {
+      cosA, -sinA,
+      sinA,  cosA
+    };
+    ef.first = rot * ef.first;
+    ef.second = rot * ef.second;
 
     return ef;
   }
-  protected:
+  private:
+
   // integral of max(0, min(x, x_r(y)) - x_l(y)) over vertical section
   //   when not truncated by vertical line at x
   static double fullSection(double y_a, double y_b, double h, double width1, double width2) {
@@ -168,20 +214,16 @@ class Challenge {
       auto start = bpVec[i];
       auto end = bpVec[i+1];
       auto mid = 0.5 * (start + end);
-      //std::cout << "Interval [" << start << ", " << end << "], mid: " << mid << std::endl;
 
+      // left and right x positions at mid height of interval
       double x_l_mid = a.x + (d.x - a.x) / h * mid;
       double x_r_mid = b.x + (c.x - b.x) / h * mid;
-      //std::cout << "  x_l_mid: " << x_l_mid << ", x_r_mid: " << x_r_mid << std::endl;
       if (x <= x_l_mid) {
-        //std::cout << "0 area" << std::endl;
         continue;
       } else if (x >= x_r_mid) {
-        //std::cout << "full area" << std::endl;
         area += fullSection(start, end, h,
             Point::distance(a, b), Point::distance(d, c));
       } else {
-        //std::cout << "trunc area" << std::endl;
         area += truncSection(start, end, h, x,
             a.x, d.x);
       }
@@ -191,11 +233,12 @@ class Challenge {
   }
 
   // function for root finding
-  static double rootFunc(const Trapezoid& trapezoid, double t , double targetArea) {
+  static double rootFunc(const Trapezoid& trapezoid, double t, double targetArea) {
     return leftArea(trapezoid, t) - targetArea;
   }
 
   // calculate points E and F at specified horizontal position
+  //   t is in [0, 1]
   static std::pair<Point, Point> calculateEFAtT(const Trapezoid& trapezoid, double t) {
     assert(t >= 0 && t <= 1);
     auto a = trapezoid.getA();
@@ -249,30 +292,45 @@ class Challenge {
 };
 
 int main(void) {
+  // read input
   Point a, b, c, d;
   std::cout << "Enter trapezoid points A B C D as x1 y1 x2 y2 x3 y3 x4 y4:" << std::endl;
   std::cin >> a.x >> a.y >> b.x >> b.y >> c.x >> c.y >> d.x >> d.y;
+
+  // validate input
   bool valid = Trapezoid::validate(a, b, c, d);
   if (!valid) {
     std::cerr << "Invalid trapezoid points ABCD. AB and CD must be parallel and non-zero length." << std::endl;
     return 1;
   }
+
+  // solve challenge
   Trapezoid trapezoid(a, b, c, d);
   std::cout << trapezoid.toString() << std::endl;
   std::cout << "Full trapezoid area: " << trapezoid.area() << std::endl;
-  auto [e, f] = Challenge::calculateEF(trapezoid);
-  std::cout << "E: " << e.toString() << std::endl;
-  std::cout << "F: " << f.toString() << std::endl;
+  try {
+    auto [e, f] = Challenge::calculateEF(trapezoid);
 
-  std::cout << "Writing file trapezoid.txt" << std::endl;
-  std::ofstream ofs("trapezoid.txt");
-  ofs << a.x << " " << a.y << " "
-      << b.x << " " << b.y << " "
-      << c.x << " " << c.y << " "
-      << d.x << " " << d.y << std::endl
-      << e.x << " " << e.y << " "
-      << f.x << " " << f.y << std::endl;
-  ofs.close();
+    // output results to stdout
+    std::cout << "E: " << e.toString() << std::endl;
+    std::cout << "F: " << f.toString() << std::endl;
+
+    // write output to file
+    //   first line - input trapezoid points
+    //   second line - output points E and F
+    std::cout << "Writing file trapezoid.txt" << std::endl;
+    std::ofstream ofs("trapezoid.txt");
+    ofs << a.x << " " << a.y << " "
+        << b.x << " " << b.y << " "
+        << c.x << " " << c.y << " "
+        << d.x << " " << d.y << std::endl
+        << e.x << " " << e.y << " "
+        << f.x << " " << f.y << std::endl;
+    ofs.close();
+  } catch (const std::exception& ex) {
+    std::cerr << "Error solving challenge: " << ex.what() << std::endl;
+    return 1;
+  }
 
   std::cout << "Exiting" << std::endl;
   return 0;
