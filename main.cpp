@@ -261,7 +261,7 @@ class Challenge {
 
     // vertical line intersects left side
     if (x > x0_l && x < x1_l) {
-      double y_l = h*((x - a.x)/(d.x - a.x)); 
+      double y_l = a.y + h*((x - a.x)/(d.x - a.x)); 
       Point l = a.x < d.x ? a : d;
       Point r = a.x < d.x ? d : a;
       // determine which is top and which is bottom
@@ -275,7 +275,7 @@ class Challenge {
 
     // vertical line intersects right side
     if (x > x0_r && x < x1_r) {
-      double y_r = h*((x - b.x)/(c.x - b.x));
+      double y_r = a.y + h*((x - b.x)/(c.x - b.x));
       Point l = b.x < c.x ? b : c;
       Point r = b.x < c.x ? c : b;
       if (l.y - r.y < 0) {
